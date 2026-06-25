@@ -1,0 +1,2 @@
+script_narrative_rag/data/*.json filter=lfs diff=lfs merge=lfs -text
+script_narrative_rag/data/*.jsonl filter=lfs diff=lfs merge=lfs -text

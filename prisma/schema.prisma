@@ -1,0 +1,59 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  createdAt    DateTime @default(now())
+  projects     Project[]
+}
+
+model Project {
+  id                  String           @id @default(cuid())
+  userId              String
+  title               String
+  storyBrief          String           @default("")
+  durationSeconds     Int              @default(0)
+  primaryScene        String           @default("")
+  secondaryScene      String           @default("")
+  aspectRatio         String           @default("9:16")
+  subtitleMode        String           @default("none")
+  dialogueMode        String           @default("auto")
+  voiceoverMode       String           @default("auto")
+  referenceImageCount Int              @default(6)
+  referenceVideoCount Int              @default(0)
+  referenceAudioCount Int              @default(0)
+  referenceBgmCount   Int              @default(0)
+  stylePreset         String           @default("")
+  cameraMotionStyle   String           @default("")
+  finalPromptMarkdown String           @default("")
+  referenceAudioMarkdown String        @default("")
+  createdAt           DateTime         @default(now())
+  updatedAt           DateTime         @updatedAt
+  user                User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  referenceImages     ReferenceImage[]
+
+  @@index([userId])
+}
+
+model ReferenceImage {
+  id               String  @id @default(cuid())
+  projectId        String
+  index            Int
+  kind             String
+  title            String
+  prompt           String
+  imagePath        String?
+  generationStatus String  @default("idle")
+  quality          String  @default("medium")
+  size             String  @default("1024x1536")
+  project          Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId])
+}

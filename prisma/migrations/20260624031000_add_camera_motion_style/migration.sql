@@ -1,0 +1,1 @@
+ALTER TABLE "Project" ADD COLUMN "cameraMotionStyle" TEXT NOT NULL DEFAULT '';

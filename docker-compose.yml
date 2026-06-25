@@ -1,0 +1,17 @@
+services:
+  video-prompt-web:
+    build: .
+    ports:
+      - "3000:3000"
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: "file:/app/data/dev.db"
+      ALLOW_REGISTRATION: "true"
+      ALLOW_SERVER_API_KEY_FALLBACK: "false"
+      SESSION_COOKIE_SECURE: "false"
+      SCRIPT_NARRATIVE_RAG_DIR: "/app/script_narrative_rag/data"
+    volumes:
+      - ./data:/app/data
+      - ./uploads:/app/uploads
+      - ./script_narrative_rag/data:/app/script_narrative_rag/data:ro

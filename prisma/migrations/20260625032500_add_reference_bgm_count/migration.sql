@@ -1,0 +1,1 @@
+ALTER TABLE "Project" ADD COLUMN "referenceBgmCount" INTEGER NOT NULL DEFAULT 0;
