@@ -1,4 +1,5 @@
 interface ReferenceImageLike {
+  kind: string;
   title: string;
   prompt: string;
 }
@@ -31,6 +32,17 @@ export function validateReferenceImages<T extends ReferenceImageLike>(images: T[
   const genericImage = images.find((image) => GENERIC_TITLES.has(image.title.trim()));
   if (genericImage) {
     throw new Error(`模型返回的参考图内容空泛：${genericImage.title}`);
+  }
+
+  const misplacedCharacterSheet = images.find(
+    (image) =>
+      image.kind !== "character" &&
+      (/三视图/.test(image.prompt) ||
+        (/面部.*特写/.test(image.prompt) &&
+          /正面.*侧面.*背面/.test(image.prompt)))
+  );
+  if (misplacedCharacterSheet) {
+    throw new Error(`只有人物参考图可以包含面部特写和三视图：${misplacedCharacterSheet.title}`);
   }
 
   return images;

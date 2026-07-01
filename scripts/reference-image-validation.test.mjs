@@ -46,3 +46,23 @@ test("rejects generic placeholder reference images", () => {
 test("keeps concrete story-specific reference images", () => {
   assert.deepEqual(validateReferenceImages(concreteImages, 2), concreteImages);
 });
+
+test("rejects character reference-sheet layouts on scenes and props", () => {
+  assert.throws(
+    () =>
+      validateReferenceImages(
+        [
+          concreteImages[0],
+          {
+            index: 2,
+            kind: "scene",
+            title: "废弃天文台控制室",
+            prompt:
+              "废弃天文台控制室，左侧为面部精细特写，右侧依次排布正面全身、侧面全身、背面全身标准三视图。",
+          },
+        ],
+        2
+      ),
+    /只有人物参考图/
+  );
+});
