@@ -4,6 +4,7 @@ import Image from "next/image";
 import { useCallback, useState, useEffect, use } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import VideoModificationPanel from "./VideoModificationPanel";
 
 interface ReferenceImage {
   id: string;
@@ -245,6 +246,9 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
   const [chatLoading, setChatLoading] = useState(false);
   const [pendingRevisedPrompt, setPendingRevisedPrompt] = useState("");
   const [applyingChatPrompt, setApplyingChatPrompt] = useState(false);
+  const [workspaceMode, setWorkspaceMode] = useState<"original" | "modify">(
+    "original"
+  );
 
   // Form state
   const [title, setTitle] = useState("");
@@ -687,6 +691,41 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
           <div className="studio-panel-in mb-4 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div>
         )}
 
+        <div
+          className="mb-6 inline-flex rounded-md border border-gray-200 bg-white p-1"
+          role="tablist"
+          aria-label="项目工作模式"
+        >
+          <button
+            type="button"
+            role="tab"
+            aria-selected={workspaceMode === "original"}
+            onClick={() => setWorkspaceMode("original")}
+            className={`min-h-10 rounded px-4 text-sm font-semibold transition ${
+              workspaceMode === "original"
+                ? "bg-[#1a1a1b] text-white"
+                : "text-gray-600 hover:bg-gray-100 hover:text-gray-900"
+            }`}
+          >
+            原创视频 Prompt
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={workspaceMode === "modify"}
+            onClick={() => setWorkspaceMode("modify")}
+            className={`min-h-10 rounded px-4 text-sm font-semibold transition ${
+              workspaceMode === "modify"
+                ? "bg-[#1a1a1b] text-white"
+                : "text-gray-600 hover:bg-gray-100 hover:text-gray-900"
+            }`}
+          >
+            视频修改 Prompt
+          </button>
+        </div>
+
+        {workspaceMode === "original" ? (
+          <>
         <div className="studio-card studio-panel-in mb-6 p-4">
           <div className="studio-motion-grid grid gap-3 md:grid-cols-3">
             <div className={`studio-kpi rounded-md border p-3 ${setupReady ? "border-[#1a1a1b] bg-white" : "border-gray-200 bg-white/70"}`}>
@@ -1407,6 +1446,14 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
             )}
           </div>
         </div>
+          </>
+        ) : (
+          <VideoModificationPanel
+            projectId={id}
+            apiPayload={buildApiPayload()}
+            onError={setError}
+          />
+        )}
       </main>
     </div>
   );
