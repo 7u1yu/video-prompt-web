@@ -1,0 +1,48 @@
+import assert from "node:assert/strict";
+import { test } from "node:test";
+import { validateReferenceImages } from "../src/lib/reference-image-validation.ts";
+
+const concreteImages = [
+  {
+    index: 1,
+    kind: "character",
+    title: "调查员林澈",
+    prompt: "三十岁清瘦男性，短黑发，深灰风衣，左脸细小旧疤，冷白顶光下的角色设定集。",
+  },
+  {
+    index: 2,
+    kind: "prop",
+    title: "裂屏银色录音笔",
+    prompt: "掌心大小的银色录音笔，右上角屏幕碎裂，金属边缘有擦痕，暗色桌面浅景深特写。",
+  },
+];
+
+test("rejects missing reference images instead of adding generic fallbacks", () => {
+  assert.throws(
+    () => validateReferenceImages(concreteImages.slice(0, 1), 2),
+    /只返回 1 张，要求 2 张/
+  );
+});
+
+test("rejects generic placeholder reference images", () => {
+  assert.throws(
+    () =>
+      validateReferenceImages(
+        [
+          concreteImages[0],
+          {
+            index: 2,
+            kind: "scene",
+            title: "补充场景设定图",
+            prompt: "场景设定图，空间层次清晰，主体位置明确，前中后景分明。",
+          },
+        ],
+        2
+      ),
+    /内容空泛/
+  );
+});
+
+test("keeps concrete story-specific reference images", () => {
+  assert.deepEqual(validateReferenceImages(concreteImages, 2), concreteImages);
+});

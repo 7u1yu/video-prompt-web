@@ -3,6 +3,7 @@ import OpenAI from "openai";
 import { prisma } from "@/lib/prisma";
 import { formatProviderError } from "@/lib/provider-errors";
 import { checkRateLimit, rateLimitResponse } from "@/lib/rate-limit";
+import { validateReferenceImages } from "@/lib/reference-image-validation";
 import { formatScriptRagResults, searchScriptNarrativeRag } from "@/lib/script-rag";
 import { getSession } from "@/lib/session";
 
@@ -347,21 +348,6 @@ function ensureCharacterReferenceSheetPrompt(prompt: string, primaryScene: strin
   return `${cleaned}。${getCharacterReferenceSuffix(primaryScene)}`.trim();
 }
 
-function getDetailFocus(kind: ReferenceImageKind, index: number) {
-  const preferredByKind: Record<ReferenceImageKind, string[]> = {
-    character: ["多人物一致性", "人物动作", "人物站位关系", "台词与说话人匹配"],
-    scene: ["场景一致性", "视频风格", "分辨率", "运镜"],
-    prop: ["道具一致性", "负向指令", "特效", "镜头顺序"],
-  };
-  const preferred = preferredByKind[kind];
-  return preferred[(index - 1) % preferred.length] || DETAIL_FOCUS_OPTIONS[(index - 1) % DETAIL_FOCUS_OPTIONS.length];
-}
-
-function appendDetailFocus(prompt: string, focus: string) {
-  void focus;
-  return prompt.replace(/细分考点：[^。\n]*。?/g, "").trim();
-}
-
 function sanitizeReferenceImagePrompt(prompt: string) {
   return prompt
     .replace(/剧情匹配要求：[\s\S]*$/g, "")
@@ -378,98 +364,25 @@ function sanitizeReferenceImagePrompt(prompt: string) {
     .trim();
 }
 
-function buildFallbackReferencePrompt({
-  index,
-  kind,
-  title,
-  context,
-}: {
-  index: number;
-  kind: ReferenceImageKind;
-  title: string;
-  context: PromptContext;
-}) {
-  const style = context.stylePreset || `${context.primaryScene} ${context.secondaryScene} 适配画风`;
-  const base = `${style}，${title}，`;
-
-  if (kind === "character") {
-    return appendDetailFocus(
-      `${base}人物设定集，清晰年龄感，稳定五官，明确发型，服装细节完整，眼神和表情基线明确，材质层次清楚。${getCharacterReferenceSuffix(context.primaryScene)}`,
-      getDetailFocus(kind, index)
-    );
-  }
-
-  if (kind === "scene") {
-    return appendDetailFocus(
-      `${base}场景设定图，空间层次清晰，主体位置明确，前中后景分明，光线方向明确，色调统一，环境材质细节丰富，9:16竖屏构图，画面干净，无文字水印，不出现清晰可读文字。`,
-      getDetailFocus(kind, index)
-    );
-  }
-
-  if (kind === "prop") {
-    return appendDetailFocus(
-      `${base}道具特写图，单一主体居中或略偏中心，轮廓清楚，材质、尺寸、磨损、反光和边缘细节明确，浅景深背景虚化，便于镜头识别，无文字水印，不出现清晰可读文字。`,
-      getDetailFocus(kind, index)
-    );
-  }
-
-  return appendDetailFocus(
-    `${base}场景设定图，空间层次清晰，主体位置明确，前中后景分明，光线方向明确，色调统一，环境材质细节丰富，9:16竖屏构图，画面干净，无文字水印，不出现清晰可读文字。`,
-    getDetailFocus("scene", index)
-  );
-}
-
 function ensureReferenceImagesCount(
   images: GeneratedReferenceImage[],
-  storyBrief: string,
+  _storyBrief: string,
   context: PromptContext
 ) {
   const targetCount = context.referenceImageCount;
-  const normalized = images.map(normalizeReferenceImage).filter((img) => img.title && img.prompt).slice(0, targetCount);
-  const fallbackSlots: Array<{ kind: ReferenceImageKind; title: string }> = [
-    { kind: "character", title: "主角三视图" },
-    { kind: "character", title: "重要配角三视图" },
-    { kind: "scene", title: "主场景设定图" },
-    { kind: "prop", title: "关键道具设定图" },
-    { kind: "scene", title: "补充场景设定图" },
-    { kind: "scene", title: "场景变化图" },
-    { kind: "prop", title: "补充道具特写图" },
-    { kind: "scene", title: "结尾场景参考图" },
-    { kind: "prop", title: "细节线索特写图" },
-    { kind: "scene", title: "关键冲突场景图" },
-    { kind: "prop", title: "结尾线索道具图" },
-    { kind: "scene", title: "补充空间关系图" },
-  ];
+  const normalized = images.map(normalizeReferenceImage).slice(0, targetCount);
+  const cleaned = normalized.map((img, index) => ({
+    ...img,
+    index: index + 1,
+    prompt: sanitizeReferenceImagePrompt(img.prompt),
+  }));
 
-  while (normalized.length < targetCount) {
-    const index = normalized.length + 1;
-    const slot = fallbackSlots[index - 1] || fallbackSlots[fallbackSlots.length - 1];
-    normalized.push({
-      index,
-      kind: slot.kind,
-      title: slot.title,
-      prompt: buildFallbackReferencePrompt({
-        index,
-        kind: slot.kind,
-        title: slot.title,
-        context,
-      }),
-    });
-  }
+  validateReferenceImages(cleaned, targetCount);
 
-  return normalized.map((img, index) => {
-    const cleanedPrompt =
-      sanitizeReferenceImagePrompt(img.prompt) ||
-      buildFallbackReferencePrompt({
-        index: index + 1,
-        kind: img.kind,
-        title: img.title,
-        context,
-      });
+  return cleaned.map((img) => {
     return {
       ...img,
-      index: index + 1,
-      prompt: img.kind === "character" ? ensureCharacterReferenceSheetPrompt(cleanedPrompt, context.primaryScene) : cleanedPrompt,
+      prompt: img.kind === "character" ? ensureCharacterReferenceSheetPrompt(img.prompt, context.primaryScene) : img.prompt,
     };
   });
 }
@@ -881,7 +794,7 @@ function getTextModel(settings: ApiSettings) {
 function isRetryableGenerationError(err: unknown) {
   if (!(err instanceof Error)) return false;
   return (
-    /无法自动修正|模型没有返回|JSON|Unexpected token|完整视频 Prompt|随机故事梗概/i.test(err.message) &&
+    /无法自动修正|模型没有返回|参考图|JSON|Unexpected token|完整视频 Prompt|随机故事梗概/i.test(err.message) &&
     !/quota|429|billing|API Key|Unauthorized|401|403|network|ECONN|timeout/i.test(err.message)
   );
 }
@@ -1076,6 +989,7 @@ ${ragContext}
 请严格返回结构化 JSON。referenceImages 数组数量必须等于参考图数量，且 referenceImages.kind 只能从 character、scene、prop 中选择；只能生成人物、场景、道具三类参考图，不要生成氛围图、关键动作图、光影图、风格图或其他参考图。
 generatedStoryBrief 和 finalPromptMarkdown 的剧情类型必须与“${project.primaryScene}/${project.secondaryScene}”一致；必须和上一轮、近期梗概明显不同。不要复用旧角色名、旧地点、旧道具、旧核心事件或旧结尾。
 每一条 referenceImages 必须与 finalPromptMarkdown 中对应的“参考图X”对象一致：title 要直接命名正文里出现的人物/道具/场景。prompt 必须是直接给生图模型的具体画面提示词，只写主体外观、构图、光线、材质、色彩、风格、清晰度和负面约束；不要写“根据剧情”“用于短视频”“故事梗概”“剧情作用”“服务镜头”“请生成”等说明式话术。若正文写“旧书（参考图2）”，referenceImages 第 2 条的 prompt 直接写旧书的外观、材质、磨损、摆放、光线和背景虚化；若正文写“雨夜旧街口（参考图3）”，第 3 条 prompt 直接写街口空间、雨水反光、灯光、建筑、构图和氛围。
+禁止使用“主角三视图”“重要配角三视图”“主场景设定图”“关键道具设定图”“补充场景设定图”“场景变化图”“补充道具特写图”等泛化占位标题。每个标题必须包含本次故事中可辨认的具体角色名、地点名或道具名；如果素材数量较多，应从正文中增加真实出现的角色、场景或道具，不得用空泛素材凑数。
 剧情里所有具名角色都必须占用 character 类型参考图；如果角色说话，台词前必须同时贴近引用角色参考图和对应音色参考，例如“陈序（参考图1，参考音频1）：...”。不能出现只有参考音频没有参考图的具名角色台词。旁白可以没有参考图，但必须使用非 BGM 音色参考。背景音乐只能引用 BGM 参考音频。
 referenceAudios 数组数量必须等于“音色参考数量 + BGM参考数量”。前者必须是人物、旁白或角色音色，必须写具体作品名和具体角色名，并且必须匹配人物说话语言：中文对白找中文影视/动画角色，日语对白找日本影视/动画角色，英语对白找英语影视/动画角色，其他语言同理。后者必须是 BGM，sourceCharacter 必须填“背景BGM”，sourceWork 必须是现有影视剧/电影/动画配乐或现有音乐曲目，禁止写“当前项目”“自选BGM”“原创BGM”“项目统一配乐”。referenceAudios 必须先输出全部音色参考，再输出全部 BGM 参考；正文中台词/旁白只能引用音色参考编号，背景音乐只能引用 BGM 参考编号。每条都要根据本次随机故事里的角色功能和本次生成批次ID动态选择具体出处，不要每次固定输出同一批角色。若上一轮参考音频出处不是“无”，本轮必须尽量避开上一轮相同的 sourceWork/sourceCharacter 组合，至少更换主要人物音色出处。如果音色参考数量和 BGM参考数量都为 0，referenceAudios 返回空数组。
 
@@ -1124,7 +1038,7 @@ finalPromptMarkdown 必须严格按这个结构输出：
   try {
     let result: ReturnType<typeof validateGeneratedPrompt> | null = null;
     let lastGenerationError: unknown = null;
-    const maxAttempts = 2;
+    const maxAttempts = 3;
 
     for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
       const repairPrompt =
@@ -1133,7 +1047,7 @@ finalPromptMarkdown 必须严格按这个结构输出：
           : `${userPrompt}
 
 上一轮输出没有通过后端一致性校验，失败原因：${lastGenerationError instanceof Error ? lastGenerationError.message : "未知格式错误"}。
-请不要解释原因，直接重新生成完整 JSON。优先保证可以生成成功：角色说台词尽量带人物参考图和非 BGM 音色参考；背景音乐使用 BGM 参考音频；参考音频编号和用途保持一致。`;
+请不要解释原因，直接重新生成完整 JSON。referenceImages 必须严格达到用户指定数量，每一项都必须对应正文真实出现的具体人物、具体场景或具体道具，并写成可直接生图的具体 Prompt；严禁使用“补充场景”“关键道具”“场景变化”等占位内容。角色说台词尽量带人物参考图和非 BGM 音色参考；背景音乐使用 BGM 参考音频；参考音频编号和用途保持一致。`;
 
       try {
         const generated =

@@ -7,6 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
+    "test:reference-images": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test scripts/reference-image-validation.test.mjs",
     "setup:local": "bash scripts/setup-local.sh",
     "docker:up": "docker compose up --build",
     "security:check": "node scripts/security-check.mjs"
