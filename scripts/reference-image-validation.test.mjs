@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { validateReferenceImages } from "../src/lib/reference-image-validation.ts";
+import {
+  assertAllReferenceMaterialsUsed,
+  validateReferenceImages,
+} from "../src/lib/reference-image-validation.ts";
 
 const concreteImages = [
   {
@@ -64,5 +67,38 @@ test("rejects character reference-sheet layouts on scenes and props", () => {
         2
       ),
     /只有人物参考图/
+  );
+});
+
+test("rejects an unused reference image", () => {
+  assert.throws(
+    () =>
+      assertAllReferenceMaterialsUsed(
+        "内容：林澈（参考图1）走进控制室。",
+        { imageCount: 2, videoCount: 0, audioCount: 0 }
+      ),
+    /参考图2/
+  );
+});
+
+test("rejects an unused reference video", () => {
+  assert.throws(
+    () =>
+      assertAllReferenceMaterialsUsed(
+        "运镜：缓慢前推。内容：林澈（参考图1）抬头。",
+        { imageCount: 1, videoCount: 1, audioCount: 0 }
+      ),
+    /参考视频1/
+  );
+});
+
+test("rejects an unused reference audio", () => {
+  assert.throws(
+    () =>
+      assertAllReferenceMaterialsUsed(
+        "内容：林澈（参考图1，参考音频1）：“停下。”",
+        { imageCount: 1, videoCount: 0, audioCount: 2 }
+      ),
+    /参考音频2/
   );
 });

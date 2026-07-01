@@ -47,3 +47,27 @@ export function validateReferenceImages<T extends ReferenceImageLike>(images: T[
 
   return images;
 }
+
+export function assertAllReferenceMaterialsUsed(
+  markdown: string,
+  counts: { imageCount: number; videoCount: number; audioCount: number }
+) {
+  const missing: string[] = [];
+  const groups = [
+    { label: "参考图", count: counts.imageCount },
+    { label: "参考视频", count: counts.videoCount },
+    { label: "参考音频", count: counts.audioCount },
+  ];
+
+  for (const group of groups) {
+    for (let index = 1; index <= group.count; index += 1) {
+      if (!markdown.includes(`${group.label}${index}`)) {
+        missing.push(`${group.label}${index}`);
+      }
+    }
+  }
+
+  if (missing.length > 0) {
+    throw new Error(`以下参考素材没有在剧情分镜中使用：${missing.join("、")}`);
+  }
+}
