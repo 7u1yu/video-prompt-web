@@ -36,6 +36,28 @@ export interface VideoModificationResult {
   audioReferences: ModificationAudioReference[];
 }
 
+export function buildVideoModificationRequest(
+  basePrompt: string,
+  attempt: number,
+  previousError?: string
+) {
+  const recovery =
+    attempt >= 3
+      ? "如果无法确定人物或道具的替换方向，必须选择原稿中出现频率最高的具体场景，设计一个不改变空间关系和人物动作的全新场景外观，并为它生成参考图。"
+      : "优先替换原稿中最主要的人物；没有明确人物时，替换最关键的道具；仍没有时，替换承载主要动作的核心场景。";
+
+  return `${basePrompt}
+
+【本轮最低输出要求】
+- 必须主动提出至少 1 项具体视觉替换，类型只能是人物、道具或场景，不能回答“无需修改”。
+- changeSummary 不得为空，且至少包含上述视觉替换。
+- referenceImagePrompts 不得为空，必须为每项视觉替换提供对应的具体生图 Prompt。
+- finalModificationPromptMarkdown 必须引用对应参考图编号，并保留原稿全部时间段。
+- 音色和 BGM 可按原稿实际内容选择性修改，不能用音频替换代替最低视觉替换要求。
+- ${recovery}
+${previousError ? `- 上一版失败原因：${previousError}。本轮必须针对该错误完整重做，不要解释。` : ""}`.trim();
+}
+
 const TIME_RANGE_PATTERN = /\b\d{2}:\d{2}\s*[–—-]\s*\d{2}:\d{2}\b/g;
 const GENERIC_IMAGE_TITLES = /^(主角|配角|人物|关键道具|补充道具|主场景|补充场景|场景变化)(三视图|设定图|特写图|参考图)?$/;
 

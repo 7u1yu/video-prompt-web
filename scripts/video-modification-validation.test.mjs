@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
+  buildVideoModificationRequest,
   extractStoryboardRanges,
   validateVideoModificationResult,
 } from "../src/lib/video-modification.ts";
@@ -105,4 +106,16 @@ test("rejects character sheets on scene prompts", () => {
     () => validateVideoModificationResult(broken, sourceStoryboard),
     /只有人物/
   );
+});
+
+test("forces every generation attempt to propose a concrete visual replacement", () => {
+  const request = buildVideoModificationRequest(
+    "原视频分镜稿",
+    2,
+    "模型没有返回可执行的改动摘要"
+  );
+  assert.match(request, /至少.*1.*视觉替换/);
+  assert.match(request, /changeSummary.*不得为空/s);
+  assert.match(request, /referenceImagePrompts.*不得为空/s);
+  assert.match(request, /模型没有返回可执行的改动摘要/);
 });

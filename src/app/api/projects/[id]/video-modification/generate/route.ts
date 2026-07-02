@@ -5,6 +5,7 @@ import { formatProviderError } from "@/lib/provider-errors";
 import { checkRateLimit, rateLimitResponse } from "@/lib/rate-limit";
 import { getSession } from "@/lib/session";
 import {
+  buildVideoModificationRequest,
   extractStoryboardRanges,
   validateVideoModificationResult,
   type VideoModificationResult,
@@ -31,6 +32,7 @@ const responseSchema = {
   properties: {
     changeSummary: {
       type: "array",
+      minItems: 1,
       items: {
         type: "object",
         additionalProperties: false,
@@ -56,6 +58,7 @@ const responseSchema = {
     finalModificationPromptMarkdown: { type: "string" },
     referenceImagePrompts: {
       type: "array",
+      minItems: 1,
       items: {
         type: "object",
         additionalProperties: false,
@@ -102,6 +105,7 @@ const SYSTEM_PROMPT = `你是专业的视频局部修改导演。用户会提供
 你的任务不是重写剧情，而是自动精选最值得替换的主要人物、关键道具、核心场景、旁白音色或背景音乐，给出一套完整、可执行的视频修改方案。
 
 强制规则：
+- 无论原稿多短，都必须主动提出至少一项具体的人物、道具或场景视觉替换；禁止返回空的 changeSummary 或 referenceImagePrompts，禁止回答“没有可修改内容”。
 - 严格保留原剧情顺序、视频时长、镜头数量、每个时间段、人物数量、动作、表情节奏、站位、移动轨迹、空间关系、剪辑节奏和运镜。
 - 场景可以替换，但新场景必须支持原有动作、站位、道具关系和镜头轨迹。
 - 不要把所有元素都改掉，只精选对视觉或听觉提升最大的关键项。
@@ -268,13 +272,15 @@ ${ranges.join("\n")}`;
     let result: VideoModificationResult | null = null;
     let lastError: unknown = null;
     for (let attempt = 1; attempt <= 3; attempt += 1) {
-      const userPrompt =
+      const userPrompt = buildVideoModificationRequest(
+        basePrompt,
+        attempt,
         attempt === 1
-          ? basePrompt
-          : `${basePrompt}
-
-上一版未通过后端校验：${lastError instanceof Error ? lastError.message : "格式不完整"}。
-请直接重新返回完整JSON，修正缺失时间段、素材引用或生图Prompt类型错误。`;
+          ? undefined
+          : lastError instanceof Error
+            ? lastError.message
+            : "上一版格式不完整"
+      );
       try {
         const generated =
           provider === "openai"
