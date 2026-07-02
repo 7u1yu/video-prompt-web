@@ -3,6 +3,7 @@ import { test } from "node:test";
 import {
   buildVideoModificationRequest,
   extractStoryboardRanges,
+  normalizeVideoModificationResult,
   validateVideoModificationResult,
 } from "../src/lib/video-modification.ts";
 
@@ -118,4 +119,17 @@ test("forces every generation attempt to propose a concrete visual replacement",
   assert.match(request, /changeSummary.*不得为空/s);
   assert.match(request, /referenceImagePrompts.*不得为空/s);
   assert.match(request, /模型没有返回可执行的改动摘要/);
+});
+
+test("normalizes wrapped snake_case responses from compatible providers", () => {
+  const normalized = normalizeVideoModificationResult({
+    data: {
+      change_summary: validResult.changeSummary,
+      final_modification_prompt_markdown:
+        validResult.finalModificationPromptMarkdown,
+      reference_image_prompts: validResult.referenceImagePrompts,
+      audio_references: validResult.audioReferences,
+    },
+  });
+  assert.deepEqual(normalized, validResult);
 });

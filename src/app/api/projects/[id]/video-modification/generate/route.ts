@@ -7,6 +7,7 @@ import { getSession } from "@/lib/session";
 import {
   buildVideoModificationRequest,
   extractStoryboardRanges,
+  normalizeVideoModificationResult,
   validateVideoModificationResult,
   type VideoModificationResult,
 } from "@/lib/video-modification";
@@ -122,7 +123,9 @@ const SYSTEM_PROMPT = `你是专业的视频局部修改导演。用户会提供
 function parseJson(content: string) {
   const trimmed = content.trim();
   const fenced = trimmed.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/);
-  return JSON.parse(fenced?.[1] || trimmed) as VideoModificationResult;
+  return normalizeVideoModificationResult(
+    JSON.parse(fenced?.[1] || trimmed)
+  );
 }
 
 function getTextApiKey(settings: ApiSettings) {

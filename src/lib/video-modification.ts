@@ -36,6 +36,156 @@ export interface VideoModificationResult {
   audioReferences: ModificationAudioReference[];
 }
 
+export function normalizeVideoModificationResult(
+  raw: unknown
+): VideoModificationResult {
+  const asRecord = (value: unknown): Record<string, unknown> =>
+    value && typeof value === "object" && !Array.isArray(value)
+      ? (value as Record<string, unknown>)
+      : {};
+  const root = asRecord(raw);
+  const wrapped =
+    asRecord(root.data).changeSummary ||
+    asRecord(root.data).change_summary ||
+    asRecord(root.result).changeSummary ||
+    asRecord(root.result).change_summary ||
+    asRecord(root.output).changeSummary ||
+    asRecord(root.output).change_summary
+      ? asRecord(root.data).changeSummary || asRecord(root.data).change_summary
+        ? asRecord(root.data)
+        : asRecord(root.result).changeSummary ||
+            asRecord(root.result).change_summary
+          ? asRecord(root.result)
+          : asRecord(root.output)
+      : root;
+  const pick = (...keys: string[]) => {
+    for (const key of keys) {
+      if (wrapped[key] !== undefined) return wrapped[key];
+    }
+    return undefined;
+  };
+  const toArray = (value: unknown): unknown[] => {
+    if (Array.isArray(value)) return value;
+    if (typeof value === "string") {
+      try {
+        const parsed = JSON.parse(value);
+        return Array.isArray(parsed) ? parsed : [];
+      } catch {
+        return [];
+      }
+    }
+    return [];
+  };
+  const toStringArray = (value: unknown) =>
+    toArray(value).map(String).filter(Boolean);
+  const typeMap: Record<string, ModificationChangeType> = {
+    人物: "character",
+    角色: "character",
+    道具: "prop",
+    场景: "scene",
+    音色: "voice",
+    旁白: "voice",
+    bgm: "bgm",
+    BGM: "bgm",
+    背景音乐: "bgm",
+  };
+
+  const changeSummary = toArray(
+    pick("changeSummary", "change_summary", "changes", "modifications", "改动摘要")
+  ).map((value) => {
+    const item = asRecord(value);
+    const rawType = String(item.type ?? item.kind ?? item.change_type ?? "");
+    return {
+      type: typeMap[rawType] || (rawType as ModificationChangeType),
+      original: String(
+        item.original ?? item.original_item ?? item.source ?? item.原内容 ?? ""
+      ),
+      replacement: String(
+        item.replacement ??
+          item.replacement_item ??
+          item.target ??
+          item.替换内容 ??
+          ""
+      ),
+      shots: toStringArray(
+        item.shots ?? item.time_ranges ?? item.ranges ?? item.涉及镜头
+      ),
+      referenceLabel: String(
+        item.referenceLabel ??
+          item.reference_label ??
+          item.reference ??
+          item.参考素材 ??
+          ""
+      ),
+    };
+  });
+
+  const referenceImagePrompts = toArray(
+    pick(
+      "referenceImagePrompts",
+      "reference_image_prompts",
+      "imagePrompts",
+      "image_prompts",
+      "生图Prompt"
+    )
+  ).map((value, index) => {
+    const item = asRecord(value);
+    return {
+      index: Number(item.index ?? item.id ?? index + 1),
+      kind: String(item.kind ?? item.type ?? "scene") as
+        | "character"
+        | "scene"
+        | "prop",
+      title: String(item.title ?? item.name ?? item.标题 ?? ""),
+      prompt: String(item.prompt ?? item.image_prompt ?? item.提示词 ?? ""),
+    };
+  });
+
+  const audioReferences = toArray(
+    pick(
+      "audioReferences",
+      "audio_references",
+      "audioSources",
+      "audio_sources",
+      "音频参考"
+    )
+  ).map((value, index) => {
+    const item = asRecord(value);
+    return {
+      index: Number(item.index ?? item.id ?? index + 1),
+      kind: String(item.kind ?? item.type ?? "bgm") as "voice" | "bgm",
+      title: String(item.title ?? item.name ?? item.标题 ?? ""),
+      sourceWork: String(
+        item.sourceWork ?? item.source_work ?? item.work ?? item.作品 ?? ""
+      ),
+      sourceCharacterOrTrack: String(
+        item.sourceCharacterOrTrack ??
+          item.source_character_or_track ??
+          item.character_or_track ??
+          item.track ??
+          item.角色或曲目 ??
+          ""
+      ),
+      usage: String(item.usage ?? item.use ?? item.用途 ?? ""),
+    };
+  });
+
+  return {
+    changeSummary,
+    finalModificationPromptMarkdown: String(
+      pick(
+        "finalModificationPromptMarkdown",
+        "final_modification_prompt_markdown",
+        "finalModificationPrompt",
+        "final_prompt",
+        "视频修改Prompt"
+      ) || ""
+    ),
+    referenceImagePrompts,
+    audioReferences,
+  };
+}
+
 export function buildVideoModificationRequest(
   basePrompt: string,
   attempt: number,
