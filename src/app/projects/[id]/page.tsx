@@ -75,6 +75,10 @@ const SECONDARY_SCENE_OPTIONS = [
 
 const CAMERA_MOTION_OPTIONS = [
   { id: "low-push-reveal", label: "低机位前推 + 抬镜揭示" },
+  {
+    id: "flight-rush-to-closeup",
+    label: "飞行推进 + 由远景快速推至人物特写",
+  },
   { id: "lateral-foreground-wipe", label: "横向跟拍 + 前景遮挡转场" },
   { id: "half-orbit-pressure", label: "环绕半圈 + 情绪压迫推进" },
   { id: "telephoto-compression-follow", label: "长焦压缩跟拍 + 背景逼近感" },
